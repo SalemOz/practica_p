@@ -27,20 +27,33 @@ src/
 ├── app/
 │   ├── app.component.ts / app.component.html   # Componente raíz (router-outlet)
 │   ├── app.routes.ts                           # Rutas: '' → redirect a 'home'
-│   ├── orden.model.ts                          # Modelo TypeScript de la orden
-│   ├── ordenes.service.ts                      # Servicio HTTP (@Injectable + HttpClient)
-│   └── home/
-│       ├── home.page.ts                        # Componente: filtros, lógica de negocio, modal, toast
-│       ├── home.page.html                      # Plantilla: dashboard, filtro, listado, modal
-│       ├── home.page.scss                      # Estilos de la página
-│       └── home.page.spec.ts                   # Pruebas unitarias
+│   ├── core/                                   # Núcleo de la app (sin estado de UI)
+│   │   ├── models/
+│   │   │   └── orden.model.ts                  # Modelo TypeScript de la orden
+│   │   ├── services/
+│   │   │   └── ordenes.service.ts              # Servicio HTTP (@Injectable + HttpClient)
+│   │   └── business/
+│   │       └── ordenes.business.ts             # Reglas de negocio como funciones puras
+│   └── pages/
+│       └── home/
+│           ├── home.page.ts                    # Componente: estado (signals), filtros, modal, toast
+│           ├── home.page.html                  # Plantilla: dashboard, filtro, listado, modal
+│           ├── home.page.scss                  # Estilos de la página
+│           └── home.page.spec.ts               # Pruebas unitarias
 ├── environments/                                # Configuración de entornos
 └── main.ts                                     # Punto de entrada de la aplicación
 ```
 
+Organización por capas:
+
+- **`core/models`**: solo el contrato de datos (`Orden`).
+- **`core/services`**: acceso a datos (HTTP), sin lógica de negocio ni UI.
+- **`core/business`**: reglas de negocio como **funciones puras** (filtro, orden, métricas, IVA). No dependen de Angular, se prueban de forma aislada y son el único lugar donde se define qué es "stock crítico" y qué tasa de IVA se aplica.
+- **`pages`**: componentes de interfaz; solo orquestan estado (signals) y delegan las reglas en `core/business`.
+
 ---
 
-## 3. Modelo de datos (`src/app/orden.model.ts`)
+## 3. Modelo de datos (`src/app/core/models/orden.model.ts`)
 
 ```ts
 export interface Orden {
@@ -61,7 +74,7 @@ El endpoint asignado (`https://jsonplaceholder.typicode.com/posts`) devuelve **p
 
 ---
 
-## 4. Servicio HTTP (`src/app/ordenes.service.ts`)
+## 4. Servicio HTTP (`src/app/core/services/ordenes.service.ts`)
 
 - Clase marcada con **`@Injectable({ providedIn: 'root' })`** → inyectable en toda la app.
 - Inyecta **`HttpClient`** con `inject(HttpClient)`.
@@ -92,7 +105,7 @@ El componente lo consume en `ngOnInit()` manejando los tres estados: carga (`car
 
 ---
 
-## 5. Dashboard e interfaz responsiva (`home.page.html`)
+## 5. Dashboard e interfaz responsiva (`src/app/pages/home/home.page.html`)
 
 - **`ion-header` + `ion-toolbar` + `ion-title`** con el título "Órdenes de compra".
 - Dos **`ion-card`** dentro de un **`ion-grid`** con métricas calculadas dinámicamente:
@@ -115,7 +128,7 @@ El componente lo consume en `ngOnInit()` manejando los tres estados: carga (`car
 
 ---
 
-## 6. Filtro interactivo con `[(ngModel)]`
+## 6. Filtro interactivo con `[(ngModel)]` (`src/app/pages/home/home.page.ts`)
 
 Controles Ionic dentro de una tarjeta de filtro, todos enlazados con **`[(ngModel)]`** (two-way binding, `FormsModule` importado en el componente):
 
@@ -160,31 +173,36 @@ Además:
 
 ---
 
-## 8. Lógica de negocio (métodos de arreglo en TypeScript)
+## 8. Lógica de negocio (`src/app/core/business/ordenes.business.ts`)
 
-Todo vive en `home.page.ts` y opera sobre los **datos originales** (`ordenes`, sin mutar), por lo que modificar o limpiar los filtros siempre restaura el listado completo:
+Las reglas de negocio viven en un módulo de **funciones puras**, sin dependencias de Angular ni de la UI, y operan sobre los **datos originales** (`ordenes`, sin mutar el arreglo recibido), por lo que modificar o limpiar los filtros siempre restaura el listado completo:
 
-| Método | Dónde | Para qué |
+| Función | Método de arreglo | Para qué |
 |---|---|---|
-| `filter()` | `filtradas` | Filtra por texto, rango de precio y stock crítico |
-| `sort()` | `filtradas` | Ordena por ID, precio ascendente o descendente |
-| `filter()` + `reduce()` | `stockCritico`, `totalMonto` | Conteo de stock crítico y suma del monto total |
-| `map()` | `OrdenesService` | Transforma los `posts` de la API a `Orden[]` |
+| `filtrarOrdenes()` | `filter()` + `sort()` | Filtra por texto, rango de precio y stock crítico, y ordena por ID o precio |
+| `contarStockCritico()` | `filter()` | Cuenta las órdenes con stock menor que el límite |
+| `sumarMonto()` | `reduce()` | Suma el monto total del listado visible |
+| `validarRangoPrecios()` | — | Valida el rango de precios del filtro |
+| `calcularIva()` / `calcularTotal()` | — | IVA del 19 % y total de la orden |
+| `map()` (en el servicio) | `map()` | Transforma los `posts` de la API a `Orden[]` |
+
+El componente solo combina estas funciones con `computed`, de modo que todo se recalcula automáticamente cuando cambia un filtro:
 
 ```ts
-filtradas = computed(() => {
-  if (this.errorFiltro()) return [];
-  const resultado = this.ordenes().filter((o) =>
-    o.producto.toLowerCase().includes(texto) &&
-    (min === null || o.precio >= min) &&
-    (max === null || o.precio <= max) &&
-    (!this.soloCriticos || o.stock < this.STOCK_CRITICO)
-  );
-  switch (this.ordenamiento) { /* sort por precio o id */ }
-});
+filtradas = computed(() =>
+  filtrarOrdenes(this.ordenes(), {
+    busqueda: this.busqueda,
+    precioMin: this.precioMin,
+    precioMax: this.precioMax,
+    soloCriticos: this.soloCriticos,
+    ordenamiento: this.ordenamiento,
+  })
+);
+totalMonto = computed(() => sumarMonto(this.filtradas()));
+stockCritico = computed(() => contarStockCritico(this.filtradas()));
 ```
 
-**Regla de negocio obligatoria**: filtrar por rango de precio/monto e identificar productos con stock crítico; la insignia es roja cuando el stock es menor que 5. La constante `STOCK_CRITICO = 5` es la única fuente de verdad (lista, filtro y métricas la usan).
+**Regla de negocio obligatoria**: filtrar por rango de precio/monto e identificar productos con stock crítico; la insignia es roja cuando el stock es menor que 5. La constante `LIMITE_STOCK_CRITICO = 5` (exportada por el módulo de negocio y usada en la plantilla como `STOCK_CRITICO`) es la única fuente de verdad: lista, filtro y métricas la comparten.
 
 Las métricas del dashboard (`totalMonto`, `stockCritico`) dependen de `filtradas`, es decir, reflejan lo que se ve en pantalla en cada momento.
 
@@ -216,7 +234,7 @@ async facturar() {
 
 ---
 
-## 10. Pruebas unitarias (`home.page.spec.ts`)
+## 10. Pruebas unitarias (`src/app/pages/home/home.page.spec.ts`)
 
 Se mockea `OrdenesService` para que las pruebas no tocan la red. 6 pruebas, todas en verde:
 
@@ -260,4 +278,5 @@ npm run lint     # análisis con ESLint
 1. **Signals + `computed` en lugar de suscripciones manuales**: el estado (`ordenes`, filtros) son signals y las listas/métricas derivan de ellos con `computed`, lo que elimina recálculos manuales y funciona bien en Angular *zoneless*.
 2. **Datos originales intactos**: `filtradas` siempre parte de `ordenes()`, nunca muta el arreglo original, por lo que limpiar filtros siempre restaura el listado completo.
 3. **Adaptación de los datos de prueba**: el endpoint no trae precios ni stock, así que se derivan de forma determinista del `id` para poder demostrar la regla de negocio de forma reproducible.
-4. **Constante única de stock crítico** (`STOCK_CRITICO = 5`) para no repetir el número 5 en la plantilla, el filtro y las métricas.
+4. **Constante única de stock crítico** (`LIMITE_STOCK_CRITICO = 5`) exportada desde el módulo de negocio para no repetir el número 5 en la plantilla, el filtro y las métricas.
+5. **Separación por capas**: `core/models` (datos), `core/services` (acceso a datos), `core/business` (reglas puras) y `pages` (interfaz). El componente queda delgado: declara estado con signals y delega el cálculo en funciones probables de forma aislada.

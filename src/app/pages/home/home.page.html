@@ -5,8 +5,9 @@
 </ion-header>
 
 <ion-content class="ion-padding">
+  <!-- Dashboard: métricas calculadas dinámicamente -->
   <ion-grid>
-        <ion-row>
+    <ion-row>
       <ion-col size="12" sizeMd="6">
         <ion-card>
           <ion-card-header>
@@ -15,10 +16,11 @@
           </ion-card-header>
         </ion-card>
       </ion-col>
+
       <ion-col size="12" sizeMd="6">
         <ion-card>
           <ion-card-header>
-            <ion-card-subtitle>Órdenes con stock crítico (&lt; 5)</ion-card-subtitle>
+            <ion-card-subtitle>Órdenes con stock crítico (&lt; {{ STOCK_CRITICO }})</ion-card-subtitle>
             <ion-card-title [style.color]="stockCritico() > 0 ? 'var(--ion-color-danger)' : 'inherit'">
               {{ stockCritico() }}
             </ion-card-title>
@@ -102,6 +104,7 @@
     </ion-card-content>
   </ion-card>
 
+  <!-- Estados: cargando / error / listado / sin resultados -->
   @if (cargando()) {
     <div class="ion-text-center">
       <ion-spinner></ion-spinner>
@@ -136,7 +139,8 @@
     </ion-list>
   }
 
-    <ion-modal [isOpen]="modalAbierto()" (didDismiss)="cerrar()">
+  <!-- Modal de facturación: desglose con IVA del 19 % y total -->
+  <ion-modal [isOpen]="modalAbierto()" (didDismiss)="cerrar()">
     <ng-template>
       <ion-header>
         <ion-toolbar>

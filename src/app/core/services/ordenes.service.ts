@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core'; //marca la clase como servicio inyectable y disponible en toda la aplicación
-import { Orden } from './orden.model';
+import { Orden } from '../models/orden.model';
 import { Observable, map } from 'rxjs';
 import { HttpClient } from '@angular/common/http'; //herramienta de angular para hacer peticiones HTTP
 

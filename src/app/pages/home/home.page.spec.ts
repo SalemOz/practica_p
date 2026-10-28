@@ -2,8 +2,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
 import { HomePage } from './home.page';
-import { OrdenesService } from '../ordenes.service';
-import { Orden } from '../orden.model';
+import { OrdenesService } from '../../core/services/ordenes.service';
+import { Orden } from '../../core/models/orden.model';
 
 const ORDENES: Orden[] = [
   { id: 1, producto: 'Laptop gamer', descripcion: 'Notebook para juegos', precio: 1500, stock: 1 },

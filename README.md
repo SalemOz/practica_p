@@ -27,6 +27,19 @@ npm test        # ejecuta las pruebas unitarias
 npm run lint    # analiza el código con ESLint
 ```
 
+## Estructura del proyecto
+
+```
+src/app/
+├── core/
+│   ├── models/orden.model.ts        # Modelo Orden (tipo de datos)
+│   ├── services/ordenes.service.ts  # Servicio HTTP (@Injectable + HttpClient)
+│   └── business/ordenes.business.ts # Reglas de negocio como funciones puras
+├── pages/home/                      # Página principal (componente + plantilla + pruebas)
+├── app.routes.ts                    # Rutas de la aplicación
+└── app.component.*                  # Componente raíz
+```
+
 ## Funcionalidades
 
 - **Dashboard responsivo**: `ion-header`, `ion-toolbar` y tarjetas `ion-card` dentro
